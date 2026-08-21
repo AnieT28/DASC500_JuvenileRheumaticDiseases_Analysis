@@ -9,6 +9,7 @@ juvenile systemic lupus erythematosus (jSLE)
 #### Incidence_Analysis.R = Includes all code (annual & overall) for incidence analysis
 #### Figure_and_tables.Rmd = Includes all the codes ran for building all figures and tables.
 #### Point_Prevalence.R = Includes code ran for point prevalence 1995-2022.
+#### Regression_Analyses.Rmd → All Poisson Regression models and Negative Binomial Regression models for sex, region and age at diagnosis.
 
 ## Data
 This analysis uses CPRD Aurum data. The underlying patient-level data are not included in this repository due to data access and confidentiality restrictions in line with CPRD Research Data Governance Operating Framework.
