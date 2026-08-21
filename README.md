@@ -5,10 +5,10 @@ of juvenile idiopathic arthritis (JIA), juvenile dermatomyositis (JDM), and
 juvenile systemic lupus erythematosus (jSLE)
 
 ## Files:
-#### DataPreparationFile_Anie.R = All data cleaning, addition of columns and removal recorded in here
-#### Incidence_Analysis.R = Includes all code (annual & overall) for incidence analysis
-#### Figure_and_tables.Rmd = Includes all the codes ran for building all figures and tables.
-#### Point_Prevalence.R = Includes code ran for point prevalence 1995-2022.
+#### DataPreparationFile_Anie.R → All data cleaning, addition of columns and removal recorded in here
+#### Incidence_Analysis.R → Includes all code (annual & overall) for incidence analysis
+#### Figure_and_tables.Rmd → Includes all the codes ran for building all figures and tables.
+#### Point_Prevalence.R → Includes code ran for point prevalence 1995-2022.
 #### Regression_Analyses.Rmd → All Poisson Regression models and Negative Binomial Regression models for sex, region and age at diagnosis.
 
 ## Data
