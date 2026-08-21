@@ -1,0 +1,496 @@
+---
+title: "Poisson Regression/Negative binomial regression"
+author: "Anie Thomas"
+date: "2026-08-02"
+output: html_document
+---
+
+Poisson regression models the number of cases while accounting for the amount of person-time through an offset.
+All graphs were built using the results obtained from Incidence_Analysis.R
+
+# Libraries
+```{r}
+library(readxl)
+#install.packages("MASS")   # only once
+library(MASS)
+library(knitr)
+library(kableExtra)
+library(writexl)
+```
+
+# 1. JIA
+
+## JIA Sex differences
+```{r}
+#Read in JIA annual sex
+JIA_annual_sex <- read_excel("R:/Anie/Incidence xlsx sheets/JIA/Annual JIA Incidence rate - overall,sex,region.xlsx", sheet = 2)
+
+JIA_annual_sex$Group <- factor(JIA_annual_sex$Group)
+
+JIA_model_sex <- glm(Cases ~ Group, offset = log(PersonYears), family = poisson(link="log"),
+                     data = JIA_annual_sex)
+
+summary(JIA_model_sex)
+
+#Obtain IRR
+exp(coef(JIA_model_sex))
+
+#95% CI
+exp(confint(JIA_model_sex))
+
+#AIC = 1719.5, Residual deviance: 1311.1 and 56 degrees of freedom
+
+#Assess overdispersion
+pearson_dispersion <- sum(residuals(JIA_model_sex, type = "pearson")^2) /
+  df.residual(JIA_model_sex)
+
+pearson_dispersion #22 indicates overdispersion
+```
+## Negative Binomial Regression for sex
+```{r}
+#Using negative binomial regression - overdispersion seen
+JIA_model_sex_nb <- glm.nb(Cases ~ Group + Year + offset(log(PersonYears)),
+  data = JIA_annual_sex)
+
+summary(JIA_model_sex_nb)
+
+#Extract IRR and 95% CI
+exp(cbind(IRR = coef(JIA_model_sex_nb), confint(JIA_model_sex_nb)))
+
+#Put results into a table
+#Extract IRRs and CIs
+IRR_table <- as.data.frame(exp(cbind(
+    IRR = coef(JIA_model_sex_nb), confint(JIA_model_sex_nb))))
+
+#Add variable names
+IRR_table$Variable <- rownames(IRR_table)
+
+#Clean up names of row
+IRR_table$Variable <- gsub("^Group", "", IRR_table$Variable)
+IRR_table$Variable <- gsub("^Year$", "Calendar year", IRR_table$Variable)
+
+#Create IRR(95% CI) column
+IRR_table$`Adjusted IRR (95% CI)` <- sprintf("%.2f (%.2f–%.2f)", IRR_table$IRR,
+          IRR_table$`2.5 %`, IRR_table$`97.5 %`)
+
+# Keep only required columns
+IRR_table <- IRR_table[, c("Variable", "Adjusted IRR (95% CI)")]
+
+#Print table
+kable(IRR_table, booktabs = TRUE,
+  caption = "Adjusted incidence rate ratios of JIA sex from the negative binomial regression model."
+)
+
+```
+
+## Regional differences
+```{r}
+#Read in annual regional incidence
+JIA_annual_region <- read_excel("R:/Anie/Incidence xlsx sheets/JIA/Annual JIA Incidence rate - overall,sex,region.xlsx", sheet=3)
+
+#Factorise by group
+JIA_annual_region$Group <- factor(JIA_annual_region$Group)
+
+#Removal of NI 2023 (0 cases, 0 person-years)
+JIA_annual_region_clean <- subset(JIA_annual_region,!(Group == "Northern Ireland" & Year == 2023))
+
+#Poisson Regression
+JIA_model_region <- glm(Cases ~ Group, offset = log(PersonYears), family = poisson(link="log"),
+                     data = JIA_annual_region_clean)
+
+#Assess residual variance and degrees of freedom - evidence of over dispersion (1818.8 on 279 df)
+summary(JIA_model_region)
+
+#Obtain IRR
+exp(coef(JIA_model_region))
+
+#95% CI
+exp(confint(JIA_model_region))
+```
+## Negative binomial model for region
+```{r}
+JIA_model_region_nb <- glm.nb(Cases ~ Group + Year + offset(log(PersonYears)), data = JIA_annual_region_clean)
+
+#East Midlands is the reference
+summary(JIA_model_region_nb)
+
+#Extract IRR and 95% CI
+exp(cbind(IRR = coef(JIA_model_region_nb), confint(JIA_model_region_nb)))
+
+#Put results into a table
+#Extract IRRs and CIs
+IRR_table <- as.data.frame(exp(cbind(
+    IRR = coef(JIA_model_region_nb), confint(JIA_model_region_nb))))
+
+#Add variable names
+IRR_table$Variable <- rownames(IRR_table)
+
+#Clean up names of row
+IRR_table$Variable <- gsub("^Group", "", IRR_table$Variable)
+IRR_table$Variable <- gsub("^Year$", "Calendar year", IRR_table$Variable)
+
+#Create IRR(95% CI) column
+IRR_table$`Adjusted IRR (95% CI)` <- sprintf("%.2f (%.2f–%.2f)", IRR_table$IRR,
+          IRR_table$`2.5 %`, IRR_table$`97.5 %`)
+
+# Keep only required columns
+IRR_table <- IRR_table[, c("Variable", "Adjusted IRR (95% CI)")]
+
+#Print table
+kable(IRR_table, booktabs = TRUE,
+  caption = "Adjusted incidence rate ratios of JIA region from the negative binomial regression model.")
+```
+## Age differences
+```{r}
+#Read in annual age incidence
+JIA_annual_age <- read_excel("R:/Anie/Incidence xlsx sheets/JIA/JIA annual age-specific incidence.xlsx")
+
+#Fit model
+JIA_model_age_nb <- glm.nb(Cases ~ factor(Age) + Year + offset(log(PersonYears)), data = JIA_annual_age)
+
+#Summary - age(0) is the reference
+summary(JIA_model_age_nb)
+
+#Extract IRR and 95% CI
+exp(cbind(IRR = coef(JIA_model_age_nb), confint(JIA_model_age_nb)))
+
+#Put results into a table
+#Extract IRRs and CIs
+IRR_table <- as.data.frame(exp(cbind(
+    IRR = coef(JIA_model_age_nb), confint(JIA_model_age_nb))))
+
+#Add variable names
+IRR_table$Variable <- rownames(IRR_table)
+
+
+#Clean up names of row
+IRR_table$Variable <- gsub("^Group", "", IRR_table$Variable)
+IRR_table$Variable <- gsub("^Year$", "Calendar year", IRR_table$Variable)
+
+#Create IRR(95% CI) column
+IRR_table$`Adjusted IRR (95% CI)` <- sprintf("%.2f (%.2f–%.2f)", IRR_table$IRR,
+          IRR_table$`2.5 %`, IRR_table$`97.5 %`)
+
+# Keep only required columns
+IRR_table <- IRR_table[, c("Variable", "Adjusted IRR (95% CI)")]
+
+#Print table
+kable(IRR_table, booktabs = TRUE,
+  caption = "Adjusted incidence rate ratios of JIA age at diagnosis from the negative binomial regression model.")
+```
+
+# 2. JDM
+## Sex differences
+```{r}
+#Read in JDM annual sex
+JDM_annual_sex <- read_excel("R:/Anie/Incidence xlsx sheets/JDM/JDM annual sex incidence rates.xlsx")
+
+# JIA_annual_sex$Group <- factor(JIA_annual_sex$Group)
+
+JDM_model_sex <- glm(Cases ~ factor(Group), offset = log(PersonYears), family = poisson(link="log"),
+                     data = JDM_annual_sex)
+
+summary(JDM_model_sex)
+
+#Obtain IRR
+exp(coef(JDM_model_sex))
+
+#95% CI
+exp(confint(JDM_model_sex))
+
+#AIC = 278.99, Residual deviance: 79.907 and 56 degrees of freedom
+
+#Assess overdispersion
+pearson_dispersion <- sum(residuals(JDM_model_sex, type = "pearson")^2) /
+  df.residual(JDM_model_sex)
+
+pearson_dispersion #1.48 indicates overdispersion - will do negative binomial models
+
+#Ratio > 1 is overdispersion
+#Ratio < 1 is underdispersion
+#Ratio ~ 1 is dispersion consistent
+```
+
+```{r}
+#Using negative binomial regression - overdispersion seen
+JDM_model_sex_nb <- glm.nb(Cases ~ factor(Group) + Year + offset(log(PersonYears)),
+  data = JDM_annual_sex)
+
+summary(JDM_model_sex_nb)
+
+#Extract IRR and 95% CI
+exp(cbind(IRR = coef(JDM_model_sex_nb), confint(JDM_model_sex_nb)))
+
+#Put results into a table
+#Extract IRRs and CIs
+IRR_table <- as.data.frame(exp(cbind(
+    IRR = coef(JDM_model_sex_nb), confint(JDM_model_sex_nb))))
+
+#Add variable names
+IRR_table$Variable <- rownames(IRR_table)
+
+#Clean up names of row
+IRR_table$Variable <- gsub("^Group", "", IRR_table$Variable)
+IRR_table$Variable <- gsub("^Year$", "Calendar year", IRR_table$Variable)
+
+#Create IRR(95% CI) column
+IRR_table$`Adjusted IRR (95% CI)` <- sprintf("%.2f (%.2f–%.2f)", IRR_table$IRR,
+          IRR_table$`2.5 %`, IRR_table$`97.5 %`)
+
+# Keep only required columns
+IRR_table <- IRR_table[, c("Variable", "Adjusted IRR (95% CI)")]
+
+#Print table
+kable(IRR_table, booktabs = TRUE,
+  caption = "Adjusted incidence rate ratios of JDM sex from the negative binomial regression model."
+)
+
+```
+
+## Regional differences
+```{r}
+#Load up data
+JDM_annual_region <- read_excel("R:/Anie/Incidence xlsx sheets/JDM/JDM annual region incidence rates.xlsx")
+
+#Removal of NI 2023 (0 cases, 0 person-years)
+JDM_annual_region_clean <- subset(JDM_annual_region,!(Group == "Northern Ireland" & Year == 2023))
+
+#Negative binomial model
+JDM_model_region_nb <- glm.nb(Cases ~ factor(Group) + Year + offset(log(PersonYears)), data = JDM_annual_region_clean)
+
+#East Midlands is the reference
+summary(JDM_model_region_nb)
+
+#Extract IRR and 95% CI
+exp(cbind(IRR = coef(JDM_model_region_nb), confint.default(JDM_model_region_nb)))
+
+#Put results into a table
+#Extract IRRs and CIs
+IRR_table <- as.data.frame(exp(cbind(
+    IRR = coef(JDM_model_region_nb), confint.default(JDM_model_region_nb))))
+
+#Add variable names
+IRR_table$Variable <- rownames(IRR_table)
+
+#Clean up names of row
+IRR_table$Variable <- gsub("^Group", "", IRR_table$Variable)
+IRR_table$Variable <- gsub("^Year$", "Calendar year", IRR_table$Variable)
+
+#Create IRR(95% CI) column
+IRR_table$`Adjusted IRR (95% CI)` <- sprintf("%.2f (%.2f–%.2f)", IRR_table$IRR,
+          IRR_table$`2.5 %`, IRR_table$`97.5 %`)
+
+# Keep only required columns
+IRR_table <- IRR_table[, c("Variable", "Adjusted IRR (95% CI)")]
+
+#Print table
+kable(IRR_table, booktabs = TRUE,
+  caption = "Adjusted incidence rate ratios of JDM region from the negative binomial regression model.")
+```
+
+## Age differences
+```{r}
+#Read in annual age incidence
+JDM_annual_age <- read_excel("R:/Anie/Incidence xlsx sheets/JDM/JDM annual age-specific incidence rates.xlsx")
+
+#Fit model
+JDM_model_age_nb <- glm.nb(Cases ~ factor(Age) + Year + offset(log(PersonYears)), data = JDM_annual_age)
+
+#Summary - age(0) is the reference
+summary(JDM_model_age_nb)
+
+#Extract IRR and 95% CI
+exp(cbind(IRR = coef(JDM_model_age_nb), confint(JDM_model_age_nb)))
+
+#Put results into a table
+#Extract IRRs and CIs
+IRR_table <- as.data.frame(exp(cbind(
+    IRR = coef(JDM_model_age_nb), confint(JDM_model_age_nb))))
+
+#Add variable names
+IRR_table$Variable <- rownames(IRR_table)
+
+
+#Clean up names of row
+IRR_table$Variable <- gsub("^Group", "", IRR_table$Variable)
+IRR_table$Variable <- gsub("^Year$", "Calendar year", IRR_table$Variable)
+
+#Create IRR(95% CI) column
+IRR_table$`Adjusted IRR (95% CI)` <- sprintf("%.2f (%.2f–%.2f)", IRR_table$IRR,
+          IRR_table$`2.5 %`, IRR_table$`97.5 %`)
+
+# Keep only required columns
+IRR_table <- IRR_table[, c("Variable", "Adjusted IRR (95% CI)")]
+
+#Print table
+kable(IRR_table, booktabs = TRUE,
+  caption = "Adjusted incidence rate ratios of JDM age at diagnosis from the negative binomial regression model.")
+```
+
+
+# 3. jSLE
+## Sex differences
+```{r}
+#Read in JDM annual sex
+jSLE_annual_sex <- read_excel("R:/Anie/Incidence xlsx sheets/jSLE/jSLE annual sex incidence rates.xlsx")
+
+jSLE_model_sex <- glm(Cases ~ factor(Group), offset = log(PersonYears), family = poisson(link="log"),
+                     data = jSLE_annual_sex)
+
+summary(jSLE_model_sex)
+
+#Obtain IRR
+exp(coef(jSLE_model_sex))
+
+#95% CI
+exp(confint(jSLE_model_sex))
+
+#AIC = 321.36, Residual deviance: 88.78 and 56 degrees of freedom
+
+#Assess overdispersion
+pearson_dispersion <- sum(residuals(jSLE_model_sex, type = "pearson")^2) /
+  df.residual(jSLE_model_sex)
+
+pearson_dispersion #1.49 indicates overdispersion - will do negative binomial models
+
+#Ratio > 1 is overdispersion
+#Ratio < 1 is underdispersion
+#Ratio ~ 1 is dispersion consistent
+```
+
+```{r}
+#Using negative binomial regression - overdispersion seen
+jSLE_model_sex_nb <- glm.nb(Cases ~ factor(Group) + Year + offset(log(PersonYears)),
+  data = jSLE_annual_sex)
+
+summary(jSLE_model_sex_nb)
+
+#Extract IRR and 95% CI
+exp(cbind(IRR = coef(jSLE_model_sex_nb), confint(jSLE_model_sex_nb)))
+
+#Put results into a table
+#Extract IRRs and CIs
+IRR_table <- as.data.frame(exp(cbind(
+    IRR = coef(jSLE_model_sex_nb), confint(jSLE_model_sex_nb))))
+
+#Add variable names
+IRR_table$Variable <- rownames(IRR_table)
+
+#Clean up names of row
+IRR_table$Variable <- gsub("^Group", "", IRR_table$Variable)
+IRR_table$Variable <- gsub("^Year$", "Calendar year", IRR_table$Variable)
+
+#Create IRR(95% CI) column
+IRR_table$`Adjusted IRR (95% CI)` <- sprintf("%.2f (%.2f–%.2f)", IRR_table$IRR,
+          IRR_table$`2.5 %`, IRR_table$`97.5 %`)
+
+# Keep only required columns
+IRR_table <- IRR_table[, c("Variable", "Adjusted IRR (95% CI)")]
+
+#Print table
+kable(IRR_table, booktabs = TRUE,
+  caption = "Adjusted incidence rate ratios of jSLE sex from the negative binomial regression model."
+)
+
+```
+
+## Regional differences
+```{r}
+#Load up data
+jSLE_annual_region <- read_excel("R:/Anie/Incidence xlsx sheets/jSLE/jSLE annual region incidence rates.xlsx")
+
+#Removal of NI 2023 (0 cases, 0 person-years)
+jSLE_annual_region_clean <- subset(jSLE_annual_region,!(Group == "Northern Ireland" & Year == 2023))
+
+#Negative binomial model
+jSLE_model_region_nb <- glm.nb(Cases ~ factor(Group) + Year + offset(log(PersonYears)), data = jSLE_annual_region_clean)
+
+#East Midlands is the reference
+summary(jSLE_model_region_nb)
+
+#Put results into a table
+#Extract IRRs and CIs
+IRR_table <- as.data.frame(exp(cbind(
+    IRR = coef(jSLE_model_region_nb), confint(jSLE_model_region_nb))))
+
+#Add variable names
+IRR_table$Variable <- rownames(IRR_table)
+
+#Clean up names of row
+IRR_table$Variable <- gsub("^Group", "", IRR_table$Variable)
+IRR_table$Variable <- gsub("^Year$", "Calendar year", IRR_table$Variable)
+
+#Create IRR(95% CI) column
+IRR_table$`Adjusted IRR (95% CI)` <- sprintf("%.2f (%.2f–%.2f)", IRR_table$IRR,
+          IRR_table$`2.5 %`, IRR_table$`97.5 %`)
+
+# Keep only required columns
+IRR_table <- IRR_table[, c("Variable", "Adjusted IRR (95% CI)")]
+
+#Print table
+kable(IRR_table, booktabs = TRUE,
+  caption = "Adjusted incidence rate ratios of jSLE region from the negative binomial regression model.")
+```
+## Age differences
+```{r}
+#Read in annual age incidence
+jSLE_annual_age <- read_excel("R:/Anie/Incidence xlsx sheets/jSLE/jSLE annual_age-specific.xlsx")
+
+#Fit Poisson Model for jSLE age
+jSLE_model_age <- glm(Cases ~ factor(Age), offset = log(PersonYears), family = poisson(link="log"),
+                     data = jSLE_annual_age)
+
+#Summary of Poisson model
+summary(jSLE_model_age)
+
+#Obtain IRR
+exp(coef(jSLE_model_age))
+
+#95% CI
+exp(confint(jSLE_model_age))
+
+#AIC = 1328.8, Residual deviance: 88.78 and 56 degrees of freedom
+
+#Assess overdispersion
+pearson_dispersion <- sum(residuals(jSLE_model_age, type = "pearson")^2) /
+  df.residual(jSLE_model_age)
+
+pearson_dispersion #1.03 indicates consistent dispersion - will do poisson
+
+#Ratio > 1 is overdispersion
+#Ratio < 1 is underdispersion
+#Ratio ~ 1 is dispersion consistent
+
+# #Fit model
+# jSLE_model_age_nb <- glm.nb(Cases ~ factor(Age) + Year + offset(log(PersonYears)), data = jSLE_annual_age)
+# 
+# #Summary - age(0) is the reference
+# summary(JDM_model_age_nb)
+
+#Extract IRR and 95% CI
+exp(cbind(IRR = coef(jSLE_model_age), confint(jSLE_model_age)))
+
+#Put results into a table
+#Extract IRRs and CIs
+IRR_table <- as.data.frame(exp(cbind(
+    IRR = coef(jSLE_model_age), confint(jSLE_model_age))))
+
+#Add variable names
+IRR_table$Variable <- rownames(IRR_table)
+
+
+#Clean up names of row
+IRR_table$Variable <- gsub("^Group", "", IRR_table$Variable)
+IRR_table$Variable <- gsub("^Year$", "Calendar year", IRR_table$Variable)
+
+#Create IRR(95% CI) column
+IRR_table$`Adjusted IRR (95% CI)` <- sprintf("%.2f (%.2f–%.2f)", IRR_table$IRR,
+          IRR_table$`2.5 %`, IRR_table$`97.5 %`)
+
+# Keep only required columns
+IRR_table <- IRR_table[, c("Variable", "Adjusted IRR (95% CI)")]
+
+#Print table
+kable(IRR_table, booktabs = TRUE,
+  caption = "Adjusted incidence rate ratios of jSLE age at diagnosis from the negative binomial regression model.")
+```

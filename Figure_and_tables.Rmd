@@ -1,0 +1,880 @@
+---
+title: "Incidence Analysis Plots"
+author: "Anie Thomas"
+date: "2026-07-26"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+# Libraries
+```{r}
+#Load relevant libraries
+library(readxl)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(viridis)
+library(data.table)
+library(sf)
+library(stringr)
+library(gtsummary)
+library(gt)
+library(patchwork)
+library(writexl)
+```
+
+# Demographics table
+```{r}
+#Build demographics table
+#Load up data
+load("R:/Anie/cleaned_data_v2_JIA.RData")
+
+#Building table
+#Create separate data sets with valid age ranges
+JIA_data <- data %>%
+  filter(JIA == 1, JIA_age >= 0, JIA_age <= 16) %>% transmute(Disease = "JIA", AgeAtDiagnosis = JIA_age, gender, region)
+
+JDM_data <- data %>%
+  filter(JDM == 1, JDM_age >= 0, JDM_age <= 18) %>%
+  transmute(Disease = "JDM", AgeAtDiagnosis = JDM_age, gender, region)
+
+jSLE_data <- data %>%
+  filter(jSLE == 1, jSLE_age >= 0, jSLE_age <= 18) %>%
+  transmute(Disease = "jSLE", AgeAtDiagnosis = jSLE_age, gender, region)
+
+#Combine datasets
+demographic_data <- bind_rows(JIA_data, JDM_data, jSLE_data)
+
+#Summary of data after filtering
+summary(demographic_data)
+
+demographic_data <- demographic_data %>%
+  mutate(gender = recode(gender, "F" = "Female","M" = "Male"))
+
+#Build demographics table
+demographics_table <- demographic_data %>%
+  tbl_summary(by = Disease, statistic = list(AgeAtDiagnosis ~ "{median} ({p25}, {p75})",
+      all_categorical() ~ "{n} ({p}%)"),label = list(AgeAtDiagnosis ~ "Age at diagnosis (years)", gender ~ "Sex", region ~ "Region"), missing = "no") %>% bold_labels() %>%
+  modify_caption("**Demographic characteristics of incidence cases of JIA, JDM and jSLE**")
+
+#View table
+demographics_table
+
+#Edit view of demographics table
+demographics_table %>% as_gt() %>% tab_options(table.font.size = px(12))
+```
+
+#Population summary
+```{r}
+#Summary of total populations from all regions
+table(data$region)
+```
+# Annual incidence by sex Line Graphs
+## JDM
+```{r}
+#Load relevant .xlsx file
+JDM_sex_graph <- read_excel("R:/Anie/Incidence xlsx sheets/JDM/JDM annual sex incidence rates.xlsx")
+JDM_sex_graph$Group <- factor(JDM_sex_graph$Group, levels = c("F", "M")) 
+
+#Plot JDM annual sex incidence
+#2023 was excluded as there were no cases but large CI.
+#Will have to make a table with 95% CI and add to supplementary/appendix
+JDM_plot <- ggplot(
+  JDM_sex_graph %>% filter(Year != 2023), aes(x = Year, y = IncidenceRate, colour = Group, group = Group)) +
+  geom_line(linewidth = 1) + geom_point(size = 1) +  
+  scale_colour_viridis_d(labels = c("F" = "Female", "M" = "Male")) +
+  scale_x_continuous(breaks = seq(1995, 2022, by = 5)) +
+  labs(x = "Calendar year", y = "Incidence rate per 100,000 person-years",
+    colour = "Sex", title = "Annual incidence for JDM by sex (1995-2022)" ) +
+  theme_classic(base_size = 12) +theme(axis.text = element_text(colour = "black"),
+    legend.position = "right", legend.text = element_text(size = 11))
+
+#View plot
+JDM_plot
+
+#Save plot to folder
+#ggsave(JDM_plot, file = "R:/Anie/Incidence Plots/JDM/JDM_sex_incidence.png", width = 7, height = 5, dpi = 600)
+```
+## JIA
+```{R}
+#Load relevant xlsx data
+JIA_sex_graph <- read_excel("R:/Anie/Incidence xlsx sheets/JIA/Annual JIA Incidence rate - overall,sex,region.xlsx",
+                            sheet = 2)
+JIA_sex_graph$Group <- factor(JIA_sex_graph$Group, levels = c("F", "M")) 
+
+#Plot JIA 
+JIA_plot <- ggplot(JIA_sex_graph,
+  aes(x = Year, y = IncidenceRate,colour = Group, group = Group)) +
+  geom_line(linewidth = 1) + geom_point(size = 1.2) +
+  scale_colour_viridis_d(labels = c("F" = "Female", "M" = "Male")) +
+  scale_x_continuous( breaks = seq(1995, 2023, by = 5)) +
+  labs(x = "Calendar year", y = "Incidence rate per 100,000 person-years", colour = "Sex",
+       title = "Annual incidence for JIA by Sex (1995-2023)") +
+  theme_classic(base_size = 12) +
+  theme(axis.text = element_text(colour = "black"),legend.position = "right",
+        legend.text = element_text(size = 11))
+
+#View plot
+JIA_plot
+
+#Save plot to folder
+#ggsave(JIA_plot, file = "R:/Anie/Incidence Plots/JIA/JIA_sex_incidence.png", width = 7, height = 5, dpi = 600)
+```
+## jSLE
+```{r}
+#Load relevant .xlsx file
+jSLE_sex_graph <- read_excel("R:/Anie/Incidence xlsx sheets/jSLE/jSLE annual sex incidence rates.xlsx")
+jSLE_sex_graph$Group <- factor(jSLE_sex_graph$Group, levels = c("F", "M")) 
+
+#Plot jSLE annual sex incidence
+#2023 was excluded as there were no cases but large CI - just like JDM
+#Will have to make a table with 95% CI and add to supplementary/appendix
+jSLE_plot <- ggplot(jSLE_sex_graph %>% filter(Year != 2023),
+  aes(x = Year, y = IncidenceRate, colour = Group, group = Group)) +
+  geom_line(linewidth = 1) + geom_point(size = 1) +
+   scale_colour_viridis_d(labels = c("F" = "Female", "M" = "Male")) +
+  scale_x_continuous(breaks = seq(1995, 2022, by = 5)) +
+  labs(x = "Calendar year", y = "Incidence rate per 100,000 person-years", colour = "Sex", title = "Annual incidence for jSLE by sex (1995-2022)") + theme_classic(base_size = 12) +
+  theme(axis.text = element_text(colour = "black"), legend.position = "right",
+    legend.text = element_text(size = 11)
+  )
+
+#View plot
+jSLE_plot
+
+#Save plot to folder
+#ggsave(jSLE_plot, file = "R:/Anie/Incidence Plots/jSLE/jSLE_sex_incidence.png", width = 7, height = 5, dpi = 600)
+```
+
+## Joining all sex graphs together
+```{r}
+#Using patchwork library for combined plot
+combined_plot <- JIA_plot | jSLE_plot | JDM_plot
+
+combined_plot
+
+ggsave("combined_sex_plots.png",plot = combined_plot,width = 15,height = 5,units = "in",dpi = 300)
+```
+
+# Tables with incidence rates and 95% CI
+## JDM
+```{r}
+#Setting wider format to reduce rows
+JDM_wide <- JDM_sex_graph %>%
+  mutate(Group = recode(Group, "F" = "Female", "M" = "Male"),
+    `IR (95% CI)` = sprintf("%.2f (%.2f–%.2f)", IncidenceRate, Lower95CI, Upper95CI
+    ), PersonYears = format(round(PersonYears), big.mark = ",")) %>%
+  select(Year, Group, Cases, PersonYears,`IR (95% CI)`) %>%
+  pivot_wider(names_from = Group, values_from = c(Cases, PersonYears, `IR (95% CI)`))
+
+#Reorder columns
+JDM_wide <- JDM_wide %>% select(Year, Cases_Female, PersonYears_Female, `IR (95% CI)_Female`, Cases_Male, PersonYears_Male, `IR (95% CI)_Male`)
+
+#Rename columns
+colnames(JDM_wide) <- c("Year", "Female Cases", "Female Person-years", "Female IR (95% CI)", "Male Cases", "Male Person-years", "Male IR (95% CI)")
+
+#Write to csv for printing
+write_xlsx(JDM_wide, "Annual sex-specific JDM w 95% CI.xlsx")
+
+#Print using kable
+knitr::kable(JDM_wide, caption = "Annual incidence of JDM by sex, 1995–2022.",
+  align = c("c", "r", "r", "c", "r", "r", "c"), booktabs = TRUE)
+```
+##jSLE
+```{r}
+#Setting wider format to reduce rows
+jSLE_wide <- jSLE_sex_graph  %>%
+  mutate(Group = recode(Group, "F" = "Female", "M" = "Male"),
+    `IR (95% CI)` = sprintf("%.2f (%.2f–%.2f)", IncidenceRate, Lower95CI, Upper95CI
+    ), PersonYears = format(round(PersonYears), big.mark = ",")) %>%
+  select(Year, Group, Cases, PersonYears,`IR (95% CI)`) %>%
+  pivot_wider(names_from = Group, values_from = c(Cases, PersonYears, `IR (95% CI)`))
+
+#Reorder columns
+jSLE_wide <- jSLE_wide %>% select(Year, Cases_Female, PersonYears_Female, `IR (95% CI)_Female`, Cases_Male, PersonYears_Male, `IR (95% CI)_Male`)
+
+#Rename columns
+colnames(jSLE_wide) <- c("Year", "Female Cases", "Female Person-years", "Female IR (95% CI)", "Male Cases", "Male Person-years", "Male IR (95% CI)")
+
+#Write to csv for printing
+write_xlsx(jSLE_wide, "Annual sex-specific jSLE w 95% CI.xlsx")
+
+#Print using kable
+knitr::kable(jSLE_wide, caption = "Annual incidence of jSLE by sex, 1995–2022.",
+  align = c("c", "r", "r", "c", "r", "r", "c"), booktabs = TRUE)
+```
+## JIA
+```{r}
+#Setting wider format to reduce rows
+JIA_wide <- JIA_sex_graph %>%
+  mutate(Group = recode(Group, "F" = "Female", "M" = "Male"),
+    `IR (95% CI)` = sprintf("%.2f (%.2f–%.2f)", IncidenceRate, Lower95CI, Upper95CI
+    ), PersonYears = format(round(PersonYears), big.mark = ",")) %>%
+  select(Year, Group, Cases, PersonYears,`IR (95% CI)`) %>%
+  pivot_wider(names_from = Group, values_from = c(Cases, PersonYears, `IR (95% CI)`))
+
+#Reorder columns
+JIA_wide <- JIA_wide %>% select(Year, Cases_Female, PersonYears_Female, `IR (95% CI)_Female`, Cases_Male, PersonYears_Male, `IR (95% CI)_Male`)
+
+#Rename columns
+colnames(JIA_wide) <- c("Year", "Female Cases", "Female Person-years", "Female IR (95% CI)", "Male Cases", "Male Person-years", "Male IR (95% CI)")
+
+#Write to csv for printing
+write_xlsx(JIA_wide, "Annual sex-specific JIA w 95% CI.xlsx")
+
+#Print using kable
+knitr::kable(JIA_wide, caption = "Annual sex-specific incidence of JIA, 1995–2022.",
+  align = c("c", "r", "r", "c", "r", "r", "c"), booktabs = TRUE)
+```
+
+# Heat map of Annual sex incidence rates
+## JDM
+```{r}
+#Plot heatmap
+ggplot(JDM_sex_graph, aes(x=factor(Year),
+                                   y=factor(Group),
+                                   fill = IncidenceRate)) +
+  geom_tile(colour = "white", linewidth = 0.1) +
+  scale_fill_viridis(option = "viridis", direction = 1, na.value = "grey90", name = "Incidence\nper 100,000") + #na values appear grey - 2023, NI
+  labs( x = "Year", y = "Sex", title = "Annual Sex Incidence Rates of JDM (1995-2023)") +
+  theme_minimal(base_size = 12) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        panel.grid = element_blank(),
+        plot.title = element_text(face = "bold"))
+```
+## jSLE
+```{r}
+#Plot heatmap
+ggplot(jSLE_sex_graph, aes(x=factor(Year),
+                                   y=factor(Group),
+                                   fill = IncidenceRate)) +
+  geom_tile(colour = "white", linewidth = 0.1) +
+  scale_fill_viridis(option = "viridis", direction = 1, na.value = "grey90", name = "Incidence\nper 100,000") + #na values appear grey - 2023, NI
+  labs( x = "Year", y = "Sex", title = "Annual Sex Incidence Rates of jSLE (1995-2023)") +
+  theme_minimal(base_size = 12) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        panel.grid = element_blank(),
+        plot.title = element_text(face = "bold"))
+
+```
+## JIA
+```{r}
+#Load in JIA data
+JIA_sex_graph <- read_excel("R:/Anie/Incidence xlsx sheets/JIA/Annual JIA incidence rate - overall,sex,region.xlsx", sheet = 2)
+
+#Plot heatmap
+ggplot(JIA_sex_graph, aes(x=factor(Year),  y=factor(Group), fill = IncidenceRate)) +
+  geom_tile(colour = "white", linewidth = 0.1) +
+  scale_fill_viridis(option = "viridis", direction = 1, na.value = "grey90", name = "Incidence\nper 100,000") + #na values appear grey - 2023, NI
+  labs( x = "Year", y = "Sex", title = "Annual Sex Incidence Rates of JIA (1995-2023)") +
+  theme_minimal(base_size = 12) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        panel.grid = element_blank(),
+        plot.title = element_text(face = "bold"))
+```
+
+# Heat Map of Annual regional incidence rates
+## JIA
+```{r}
+#Read in csv file
+JIA_regional_incidence <- read_excel("R:/Anie/Incidence xlsx sheets/JIA/Annual JIA Incidence rate - overall,sex,region.xlsx", sheet = 3)
+
+#Plot heatmap
+ggplot(JIA_regional_incidence, aes(x=factor(Year), y=factor(Group), fill = IncidenceRate)) +
+  geom_tile(colour = "white", linewidth = 0.1) +
+  scale_fill_viridis(option = "viridis", direction = 1, name = "Incidence\nper 100,000") + 
+  labs( x = "Year", y = "Region of the UK", title = "Annual Regional Incidence Rates of JIA (1995-2023)") +
+  theme_minimal(base_size = 12) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        panel.grid = element_blank(), plot.title = element_text(face = "bold"))
+
+#Save heatmap
+ggsave("R:/Anie/Incidence Plots/JIA/JIA_regional_heatmap.png", width = 14, height = 8, dpi = 600)
+```
+## JDM
+```{r}
+#Read in csv file
+JDM_regional_incidence <- read_excel("R:/Anie/Incidence xlsx sheets/JDM/JDM annual region incidence rates.xlsx")
+
+#Plot heatmap
+ggplot(JDM_regional_incidence, aes(x=factor(Year), y=factor(Group), fill = IncidenceRate)) +
+  geom_tile(colour = "white", linewidth = 0.1) +
+  scale_fill_viridis(option = "viridis", direction = 1, name = "Incidence\nper 100,000") +
+  labs( x = "Year", y = "Region of the UK", title = "Annual Regional Incidence Rates of JDM (1995-2023)") +
+  theme_minimal(base_size = 12) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        panel.grid = element_blank(), plot.title = element_text(face = "bold"))
+
+#Save plot
+ggsave("R:/Anie/Incidence Plots/JDM/JDM_heatmap.png", width = 14, height = 8, dpi = 600)
+```
+## jSLE
+```{r}
+#Read in csv file
+jSLE_regional_incidence <- read_excel("R:/Anie/Incidence xlsx sheets/jSLE/jSLE annual region incidence rates.xlsx")
+
+#Plot heatmap
+ggplot(jSLE_regional_incidence, aes(x=factor(Year), y=factor(Group), fill = IncidenceRate)) +
+  geom_tile(colour = "white", linewidth = 0.1) +
+  scale_fill_viridis(option = "viridis", direction = 1, name = "Incidence\nper 100,000") + 
+  labs( x = "Year", y = "Region of the UK", title = "Annual Regional Incidence Rates of jSLE (1995-2023)") +
+  theme_minimal(base_size = 12) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), panel.grid = element_blank(),
+        plot.title = element_text(face = "bold"))
+
+#Save plot
+ggsave("R:/Anie/Incidence Plots/jSLE/jSLE_heatmap.png", width = 14, height = 8, dpi = 600)
+```
+
+# Line graphs for annual regional incidence rates
+## JIA
+```{r}
+#Load relevant .xlsx file
+JIA_regional_incidence <- read_excel("R:/Anie/Incidence xlsx sheets/JIA/Annual JIA Incidence rate - overall,sex,region.xlsx", sheet = 3)
+
+#Plot JIA annual sex incidence
+#Will have to make a table with 95% CI and add to supplementary/appendix
+JIA_plot <- ggplot(JIA_regional_incidence,
+                   aes(x = Year, y = IncidenceRate, colour = factor(Group), group = factor(Group))) +
+  geom_line(linewidth = 0.9) + geom_point(size = 0.5) +
+  scale_x_continuous(breaks = seq(1995, 2022, by = 5)) +
+  labs(x = "Calendar year", y = "Incidence rate per 100,000 person-years", colour = "Region", 
+    title = "Annual Regional Incidence for JIA (1995-2023)") + theme_classic(base_size = 12) +
+  theme(axis.text = element_text(colour = "black"), legend.position = "right",
+        legend.text = element_text(size = 11))
+
+#View plot
+JIA_plot
+
+#Save plot to folder
+#ggsave("R:/Anie/Incidence Plots/JIA/JIA_regional_incidence_line.png", width = 7, height = 5, dpi = 600)
+```
+## JDM
+```{r}
+#Load relevant .xlsx file
+JDM_regional_incidence <- read_excel("R:/Anie/Incidence xlsx sheets/JDM/JDM annual region incidence rates.xlsx")
+
+#Plot JDM annual sex incidence
+#Will have to make a table with 95% CI and add to supplementary/appendix
+JDM_plot <- ggplot(JDM_regional_incidence,
+                   aes(x = Year, y = IncidenceRate, colour = factor(Group), group = factor(Group))) +
+  geom_line(linewidth = 0.9) + geom_point(size = 0.5) +
+  scale_x_continuous(breaks = seq(1995, 2022, by = 5)) +
+  labs(x = "Calendar year", y = "Incidence rate per 100,000 person-years",
+    colour = "Region", title = "Annual Regional Incidence for JDM (1995-2023)") +
+  theme_classic(base_size = 12) +
+  theme(axis.text = element_text(colour = "black"),
+    legend.position = "right", legend.text = element_text(size = 11))
+
+#View plot
+JDM_plot
+
+#Save plot to folder
+#ggsave("R:/Anie/Incidence Plots/JDM_regional_incidence_line.png", width = 7, height = 5, dpi = 600)
+```
+## jSLE
+```{r}
+#Load relevant .xlsx file
+jSLE_regional_incidence <- read_excel("R:/Anie/Incidence xlsx sheets/jSLE/jSLE annual region incidence rates.xlsx")
+
+#Plot JDM annual sex incidence
+#Will have to make a table with 95% CI and add to supplementary/appendix
+jSLE_plot <- ggplot(jSLE_regional_incidence,
+                   aes(x = Year, y = IncidenceRate, colour = factor(Group), group = factor(Group))) +
+  geom_line(linewidth = 0.9) + geom_point(size = 0.5) +
+  scale_x_continuous(breaks = seq(1995, 2022, by = 5)) +
+  labs(x = "Calendar year", y = "Incidence rate per 100,000 person-years", colour = "Region",
+    title = "Annual Regional Incidence for jSLE (1995-2023)") + theme_classic(base_size = 12) +
+  theme(axis.text = element_text(colour = "black"), legend.position = "right", 
+        legend.text = element_text(size = 11))
+
+#View plot
+jSLE_plot
+
+#Save plot to folder
+#ggsave("R:/Anie/Incidence Plots/jSLE/jSLE_regional_incidence_line.png", width = 7, height = 5, dpi = 600)
+```
+
+# Building forest plots for overall regional incidence
+## JIA
+```{r}
+JIA_overall_region <- read_excel("R:/Anie/Incidence xlsx sheets/JIA/JIA Overall, sex and region results.xlsx")
+
+#Filter overall and sex from xlsx file
+JIA_overall_region <- JIA_overall_region %>% filter(Group == "region")
+
+#Plot forest graph
+ggplot(JIA_overall_region, aes(x = IncidenceRate, y = reorder(Level, IncidenceRate))) +
+  geom_errorbarh(aes(xmin = Lower95CI, xmax = Upper95CI), height = 0.2, linewidth = 0.5, colour = "black") +
+  geom_point(size = 2, colour = "red") +
+  labs(title = "Overall Regional Incidence of JIA (1995-2023)", x = "Incidence per 100,000 person-years (95% CI)", y = "Region of the UK")+
+  theme_minimal(base_size = 13) +
+theme(panel.grid.major.y = element_blank(), panel.grid.minor = element_blank(),
+    plot.title = element_text(hjust = 0.5))
+
+#Save plot to folder Incidence Plots
+#ggsave("JIA_region_forest.png",width = 8, height = 6, dpi = 300, bg = "white")
+```
+## JDM
+```{r}
+JDM_overall_region <- read_excel("R:/Anie/Incidence xlsx sheets/JDM/JDM Overall, by sex and by region.xlsx")
+
+#Filter overall and sex from xlsx file
+JDM_overall_region <- JDM_overall_region %>% filter(Group == "region")
+
+#Plot forest graph
+JDM_region_forest <- ggplot(JDM_overall_region,
+       aes(x = IncidenceRate,y = reorder(Level, IncidenceRate))) +
+  geom_errorbarh(aes(xmin = Lower95CI, xmax = Upper95CI), height = 0.2, linewidth = 0.5, colour = "black") +
+  geom_point(size = 2, colour = "red") +
+  labs(title = "Overall Regional Incidence of JDM (1995-2023)", x = "Incidence per 100,000 person-years (95% CI)", y = "Region of the UK")+
+  theme_minimal(base_size = 13) +
+theme(panel.grid.major.y = element_blank(), panel.grid.minor = element_blank(),
+    plot.title = element_text(hjust = 0.5))
+
+#Save plot to folder Incidence Plots
+#ggsave("JDM_region_forest.png",width = 8, height = 6, dpi = 300, bg = "white")
+```
+## jSLE
+```{r}
+jSLE_overall_region <- read_excel("R:/Anie/Incidence xlsx sheets/jSLE/jSLE Overall, by sex and by region.xlsx")
+
+#Exclude NA in following rows:
+jSLE_overall_region <- jSLE_overall_region %>% filter(Group == "region")
+
+#Plot forest graph
+jSLE_region_forest <- ggplot(jSLE_overall_region, aes(x = IncidenceRate, y = reorder(Level, IncidenceRate))) +
+  geom_errorbarh(aes(xmin = Lower95CI, xmax = Upper95CI), height = 0.2,
+                 linewidth = 0.5, colour = "black") +
+  geom_point(size = 2, colour = "red") +
+  labs(title = "Overall Regional Incidence of jSLE (1995-2023)", 
+       x = "Incidence per 100,000 person-years (95% CI)", y = "Region of the UK")+
+  theme_minimal(base_size = 13) +
+theme(panel.grid.major.y = element_blank(), panel.grid.minor = element_blank(),
+    plot.title = element_text(hjust = 0.5))
+
+#Save plot to folder Incidence Plots
+ggsave("jSLE_region_forest.png",width = 8, height = 6, dpi = 300, bg = "white")
+```
+
+```{r}
+# Join the overall forest graphs together
+combined_forest_region <- (JDM_region_forest | jSLE_region_forest) +
+  plot_annotation(
+    title = "Overall regional incidence of juvenile rheumatic diseases (1995–2023)",
+    tag_levels = "A"
+  )
+combined_forest_region
+ggsave(combined_forest_region, file = "JDM and jSLE Overall regional incidence forest.png", width = 14,height = 4,dpi = 300)
+
+JDM_plot <- JDM_overall_region %>%
+  mutate(Disease = "JDM")
+
+jSLE_plot <- jSLE_overall_region %>%
+  mutate(Disease = "jSLE")
+
+combined <- bind_rows(JDM_plot, jSLE_plot)
+
+ggplot(combined,aes(x = IncidenceRate,y = Level,xmin = Lower95CI,xmax = Upper95CI)) +
+  geom_errorbarh(height = 0.15) +
+  geom_point(size = 2.5, colour = "red") +
+  facet_wrap(~Disease, scales = "free_x") +
+  labs(title = "Overall crude regional incidence rate of juvenile rheumatic diseases (1995–2023)", x = "Incidence per 100,000 person-years (95% CI)", y = "Region of the UK") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5), strip.text = element_text(face = "bold", size = 12), axis.text.y = element_text(size = 10), panel.spacing = unit(1.2, "lines"))
+
+ggsave("jSLE and JDM overall regional incidence_forest.png", width = 8, height = 6, dpi = 300, bg = "white")
+```
+# Heat Map of Annual age-specific incidence rates
+## JIA
+```{r}
+#Read in csv file
+JIA_annual_age <- read_excel("R:/Anie/Incidence xlsx sheets/JIA/JIA annual age-specific incidence.xlsx")
+
+#Plot heatmap
+ggplot(JIA_annual_age[JIA_annual_age$Age != 0, ], aes(x=factor(Age), y=factor(Year), fill = IncidenceRate)) +
+  geom_tile(colour = "white", linewidth = 0.1) +
+  scale_fill_viridis(option = "viridis", direction = 1, name = "Incidence\nper 100,000") +
+  labs( x = "Age at Diagnosis (years)", y = "Year",
+        title = "Annual Age-specific Incidence Rates of JIA (1995-2023)") +
+  theme_minimal(base_size = 12) +
+  theme(axis.text.x = element_text(hjust = 1),
+        panel.grid = element_blank(), plot.title = element_text(face = "bold"))
+
+#Save heatmap
+#ggsave("JIA_annual_age_heatmap.png", width = 14, height = 8, dpi = 600)
+```
+## JDM
+```{r}
+#Read in csv file
+JDM_annual_age <- read_excel("R:/Anie/Incidence xlsx sheets/JDM/JDM annual age-specific incidence rates.xlsx")
+#Plot heatmap
+ggplot(JDM_annual_age[JDM_annual_age$Age != 0, ], aes(x=factor(Age), y=factor(Year), fill = IncidenceRate)) +
+  geom_tile(colour = "white", linewidth = 0.1) +
+  scale_fill_viridis(option = "viridis", direction = 1, name = "Incidence\nper 100,000") + 
+  labs( x = "Age at Diagnosis (years)", y = "Year",
+        title = "Annual Age-specific Incidence Rates of JDM (1995-2023)") +
+  theme_minimal(base_size = 12) +
+  theme(axis.text.x = element_text(hjust = 1),
+        panel.grid = element_blank(), plot.title = element_text(face = "bold"))
+
+#Save heatmap
+ggsave("JDM_annual_age_heatmap.png", width = 14, height = 8, dpi = 600)
+```
+## jSLE
+```{r}
+#Read in csv file
+jSLE_annual_age <- read_excel("R:/Anie/Incidence xlsx sheets/jSLE/jSLE annual_age-specific.xlsx")
+
+#Plot heatmap
+ggplot(jSLE_annual_age[jSLE_annual_age$Age != 0, ], aes(x=factor(Age), y=factor(Year), fill = IncidenceRate)) +
+  geom_tile(colour = "white", linewidth = 0.1) +
+  scale_fill_viridis(option = "viridis", direction = 1, name = "Incidence\nper 100,000") +
+  labs( x = "Age at Diagnosis (years)", y = "Year",
+        title = "Annual Age-specific Incidence Rates of jSLE (1995-2023)") +
+  theme_minimal(base_size = 12) +
+  theme(axis.text.x = element_text(hjust = 1), panel.grid = element_blank(),
+        plot.title = element_text(face = "bold"))
+
+#Save heatmap
+ggsave("jSLE_annual_age_heatmap.png", width = 14, height = 8, dpi = 600)
+```
+
+# Choropleth maps for regional overall
+## JDM
+```{r}
+#Read SHA geographical boundaries
+england_regions <- st_read("R:/Anie/Incidence Plots/Regions_December_2023_Boundaries_EN_BUC_-8646452588026772277/RGN_DEC_2023_EN_BUC.shp")
+
+#Read in region_incidence for JDM
+JDM_overall_region <- read_excel("R:/Anie/Incidence xlsx sheets/JDM/JDM Overall, by sex and by region.xlsx")
+
+#Removing sex, overall from xlsx file
+region_incidence <- JDM_overall_region %>% filter(Group == "region")
+
+#Remove NI - didn't make much difference
+region_incidence <- region_incidence %>% filter(Level != "Northern Ireland")
+
+#Rename column name to match england_regions
+region_incidence <- region_incidence %>% rename(Region = Level)
+
+#Do left join to join shapefile and data
+map_data <- england_regions %>% left_join(region_incidence, by = c("RGN23NM" = "Region"))
+
+#Plot choropleth
+JDM_choropleth <- ggplot(map_data) +
+  geom_sf(aes(fill = IncidenceRate), colour = "white", size = 0.1) +
+  scale_fill_viridis_c(option = "viridis", name = "Incidence\nper 100,000 person-years") +
+  labs(title = "Regional Incidence of JDM (1995 - 2023)", caption = "Data: CPRD Aurum") +
+  theme_minimal(base_size = 12) +
+  theme(plot.title = element_text(hjust = 0.5), plot.subtitle = element_text(hjust = 0.5), 
+        panel.grid = element_blank(), axis.text = element_blank(), 
+        axis.ticks = element_blank(), axis.title = element_blank())
+
+#print map
+JDM_choropleth
+
+#Save choropleth map
+#ggsave(JDM_choropleth, file ="JDM_overall_choropleth.png")
+```
+## jSLE
+```{r}
+#Read SHA geographical boundaries
+england_regions <- st_read("R:/Anie/Incidence Plots/Regions_December_2023_Boundaries_EN_BUC_-8646452588026772277/RGN_DEC_2023_EN_BUC.shp")
+
+#Read in region_incidence for jSLE
+jSLE_overall_region <- read_excel("R:/Anie/Incidence xlsx sheets/jSLE/jSLE Overall, by sex and by region.xlsx")
+
+#Removing sex, overall from xlsx file
+region_incidence <- jSLE_overall_region %>% filter(Group == "region")
+
+#Remove NI - didn't make much difference
+region_incidence <- region_incidence %>% filter(Level != "Northern Ireland")
+
+#Rename column name to match england_regions
+region_incidence <- region_incidence %>% rename(Region = Level)
+
+#Do left join to join shapefile and data
+map_data <- england_regions %>% left_join(region_incidence, by = c("RGN23NM" = "Region"))
+
+#Plot choropleth
+jSLE_choropleth <- ggplot(map_data) +
+  geom_sf(aes(fill = IncidenceRate), colour = "white", size = 0.1) +
+  scale_fill_viridis_c(option = "viridis", name = "Incidence\nper 100,000 person-years") +
+  labs(title = "Regional Incidence of jSLE (1995 - 2023)",caption = "Data: CPRD Aurum") +
+  theme_minimal(base_size = 12) +
+  theme(plot.title = element_text(hjust = 0.5), plot.subtitle = element_text(hjust = 0.5),
+        panel.grid = element_blank(), axis.text = element_blank(), 
+        axis.ticks = element_blank(), axis.title = element_blank())
+
+#print map
+jSLE_choropleth
+
+#Save choropleth map
+#ggsave(jSLE_choropleth, file = "jSLE_overall_choropleth.png")
+```
+## JIA
+```{r}
+#Read SHA geographical boundaries
+england_regions <- st_read("R:/Anie/Incidence Plots/Regions_December_2023_Boundaries_EN_BUC_-8646452588026772277/RGN_DEC_2023_EN_BUC.shp")
+
+#Read in region_incidence for JDM
+JIA_overall_region <- read_excel("R:/Anie/Incidence xlsx sheets/JIA/JIA Overall, sex and region results.xlsx")
+
+#Removing sex, overall from xlsx file
+region_incidence <- JIA_overall_region %>% filter(Group == "region")
+
+#Remove NI - didn't make much difference
+region_incidence <- region_incidence %>% filter(Level != "Northern Ireland")
+
+#Rename column name to match england_regions
+region_incidence <- region_incidence %>% rename(Region = Level)
+
+#Do left join to join shapefile and data
+map_data <- england_regions %>% left_join(region_incidence, by = c("RGN23NM" = "Region"))
+
+#Plot choropleth
+JIA_choropleth <- ggplot(map_data) +
+  geom_sf(aes(fill = IncidenceRate), colour = "white", size = 0.1) +
+  scale_fill_viridis_c(option = "viridis", name = "Incidence\nper 100,000 person-years") +
+  labs(title = "Regional Incidence of JIA (1995 - 2023)",caption = "Data: CPRD Aurum") +
+  theme_minimal(base_size = 12) +
+  theme(plot.title = element_text(hjust = 0.5), plot.subtitle = element_text(hjust = 0.5), 
+        panel.grid = element_blank(), axis.text = element_blank(), 
+        axis.ticks = element_blank(),axis.title = element_blank())
+
+#print map
+JIA_choropleth
+
+#Save choropleth map
+ggsave(JIA_choropleth, file = "JIA_overall_choropleth.png")
+```
+
+# Bar chart of overall incidence by age
+## JDM
+```{r}
+#Load up JDM age-specific overall 
+JDM_overall_age <- read_excel("R:/Anie/Incidence xlsx sheets/JDM/JDM overall age-specific.xlsx")
+
+#Bar Chart
+JDM_overall_age_bar <- ggplot(JDM_overall_age, aes(x = factor(Age), y = IncidenceRate)) +
+  geom_col(fill = "pink", colour = "black", linewidth = 0.3) +
+  geom_errorbar(aes(ymin = Lower95CI, ymax = Upper95CI), width = 0.25, linewidth = 0.5) +
+  labs(x = "Age at diagnosis (years)", y = "Incidence rate per 100,000 person-years",
+    title = "Overall Age-specific incidence of JDM (1995–2023)") + theme_classic(base_size = 12)
+
+#Point plot
+ggplot(JDM_overall_age[JDM_overall_age$Age != 0, ], aes(x = Age, y = IncidenceRate)) +
+  geom_point(size = 2, colour = "red") + geom_errorbar(aes(ymin = Lower95CI, ymax = Upper95CI),
+    width = 0.15) +
+  scale_x_continuous(breaks = 0:18) +
+  labs(title = "Overall JDM incidence by Age at Diagnosis",x = "Age at diagnosis (years)",y = "Incidence rate per 100,000 person-years") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))
+
+ggsave("JDM_overall_age_point plot.png", width = 8, bg = "white")
+```
+## JIA 
+```{r}
+#Load in JIA overall age incidence
+JIA_overall_age <- read_excel("R:/Anie/Incidence xlsx sheets/JIA/JIA overall age incidence.xlsx")
+
+names(JIA_overall_age)
+
+JIA_overall_age <- JIA_overall_age[Age!= 0]
+
+#Plot bar chart
+JIA_overall_age_bar <- ggplot(JIA_overall_age[JIA_overall_age$Age != 0, ], aes(x = factor(Age), y = IncidenceRate)) +
+  geom_col(fill = "lightblue", colour = "black", linewidth = 0.3) +
+  geom_errorbar(aes(ymin = Lower95CI, ymax = Upper95CI), width = 0.25, linewidth = 0.5) +
+  labs(x = "Age at diagnosis (years)", y = "Incidence rate per 100,000 person-years",
+    title = "Overall Age-specific incidence of JIA (1995–2023)") +theme_classic(base_size = 12)
+
+
+ggplot(JIA_overall_age[JIA_overall_age$Age != 0, ], aes(x = Age, y = IncidenceRate)) +
+  geom_point(size = 2, colour = "red") + geom_errorbar(aes(ymin = Lower95CI, ymax = Upper95CI),
+    width = 0.15) +
+  scale_x_continuous(breaks = 0:16) +
+  labs(title = "Overall JIA incidence by Age at Diagnosis",x = "Age at diagnosis (years)",y = "Incidence rate per 100,000 person-years") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))
+
+#Save plot
+ggsave("JIA overall age point plot.png", bg = "white", width = 8)
+```
+## jSLE
+```{r}
+#Load up jSLE overall age-specific incidence
+jSLE_overall_age <- read_excel("R:/Anie/Incidence xlsx sheets/jSLE/jSLE Overall by age.xlsx")
+
+#Plot barchart
+jSLE_overall_age_bar <- ggplot(jSLE_overall_age, aes(x = factor(Age), y = IncidenceRate)) +
+  geom_col(fill = "salmon", colour = "black", linewidth = 0.3) +
+  geom_errorbar(aes(ymin = Lower95CI, ymax = Upper95CI), width = 0.25, linewidth = 0.5) +
+  labs(x = "Age at diagnosis (years)", y = "Incidence rate per 100,000 person-years",
+    title = "Overall Age-specific incidence of jSLE (1995–2023)") +theme_classic(base_size = 11)
+
+#Point plot
+ggplot(jSLE_overall_age[jSLE_overall_age$Age != 0, ], aes(x = Age, y = IncidenceRate)) +
+  geom_point(size = 2, colour = "red") + geom_errorbar(aes(ymin = Lower95CI, ymax = Upper95CI),
+    width = 0.15) +
+  scale_x_continuous(breaks = 0:18) +
+  labs(title = "Overall jSLE incidence by Age at Diagnosis",x = "Age at diagnosis (years)",y = "Incidence rate per 100,000 person-years") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))
+
+ggsave("jSLE_overall_age_point plot.png", width = 8, bg = "white")
+
+#Save plot
+#ggsave(jSLE_overall_age_bar, file = "jSLE overall age bar.png")
+```
+
+# Line graph of age-specific incidence rates
+## JDM
+```{r}
+ggplot(JDM_overall_age, aes(x = Age, y = IncidenceRate)) +
+  geom_line(linewidth = 0.8, colour = "red") +
+  geom_point(size = 2, colour = "red") +
+  geom_errorbar(aes(ymin = Lower95CI, ymax = Upper95CI), width = 0.2, linewidth = 0.3) +
+  scale_x_continuous(breaks = 0:18) +
+  labs(title = "Age-specific incidence of JDM (1995–2023)", x = "Age at diagnosis (years)",
+    y = "Incidence rate per 100,000 person-years") +theme_classic(base_size = 11)
+```
+## JIA
+```{r}
+ggplot(JIA_overall_age, aes(x = Age, y = IncidenceRate)) +
+  geom_line(linewidth = 0.8, colour = "red") +
+  geom_point(size = 2, colour = "red") +
+  geom_errorbar(aes(ymin = Lower95CI, ymax = Upper95CI), width = 0.2, linewidth = 0.3) +
+  scale_x_continuous(breaks = 0:18) +
+  labs(title = "Age-specific incidence of JIA (1995–2023)",x = "Age at diagnosis (years)",
+    y = "Incidence rate per 100,000 person-years") + theme_classic(base_size = 11)
+```
+## jSLE
+```{r}
+#Plot line graph
+ggplot(jSLE_overall_age, aes(x = Age, y = IncidenceRate)) +
+  geom_line(linewidth = 0.8, colour = "red") +
+  geom_point(size = 2, colour = "red") +
+  geom_errorbar(aes(ymin = Lower95CI, ymax = Upper95CI), width = 0.2, linewidth = 0.3) +
+  scale_x_continuous(breaks = 0:18) +
+  labs(title = "Age-specific incidence of jSLE (1995–2023)", x = "Age at diagnosis (years)",
+    y = "Incidence rate per 100,000 person-years") + theme_classic(base_size = 11)
+```
+
+# Annual incidence rate bar chart
+## JIA
+```{r}
+#Load up JIA annual incidence 
+JIA_annual_incidence <- read_excel("R:/Anie/Incidence xlsx sheets/JIA/Annual JIA Incidence rate - overall,sex,region.xlsx", sheet = 1)
+
+JIA_plot <- ggplot(JIA_annual_incidence,
+                   aes(x = Year, y = IncidenceRate))+
+  geom_line(linewidth = 0.9, colour = "darkgreen") + geom_point(size = 1, colour = "darkgreen") +
+  scale_x_continuous(breaks = seq(1995, 2023, by = 2)) +
+  labs(x = "Calendar year", y = "Incidence rate per 100,000 person-years", 
+    title = "Annual Incidence for JIA (1995-2023)") + theme_classic(base_size = 12) +
+  theme(axis.text = element_text(colour = "black"), legend.position = "right",
+        legend.text = element_text(size = 11),
+        theme(axis.text.x = element_text(angle = 45, hjust = 1)))
+
+#View plot
+JIA_plot
+
+ggsave("JIA_annual_incidence.png", bg = "white", width = 8)
+```
+## JDM
+```{r}
+#Load up JDM annual incidence
+JDM_annual_incidence <- read_excel("R:/Anie/Incidence xlsx sheets/JDM/JDM annual incidence rates.xlsx")
+
+JDM_plot <- ggplot(JDM_annual_incidence,
+                   aes(x = Year, y = IncidenceRate))+
+  geom_line(linewidth = 0.9, colour = "darkblue") + geom_point(size = 1, colour = "darkblue") +
+  scale_x_continuous(breaks = seq(1995, 2023, by = 2)) +
+  labs(x = "Calendar year", y = "Incidence rate per 100,000 person-years", 
+    title = "Annual Incidence for JDM (1995-2023)") + theme_classic(base_size = 12) +
+  theme(axis.text = element_text(colour = "black"), legend.position = "right",
+        legend.text = element_text(size = 11),
+        theme(axis.text.x = element_text(angle = 45, hjust = 1)
+        ))
+
+#View plot
+JDM_plot
+
+ggsave("JDM_annual_incidence.png", bg = "white", width = 8)
+```
+## jSLE
+```{r}
+#Load up JDM annual incidence
+jSLE_annual_incidence <- read_excel("R:/Anie/Incidence xlsx sheets/jSLE/jSLE annual incidence rates.xlsx")
+
+jSLE_plot <- ggplot(jSLE_annual_incidence,
+                   aes(x = Year, y = IncidenceRate))+
+  geom_line(linewidth = 0.9, colour = "darkorange") + geom_point(size = 1, colour = "darkorange") +
+  scale_x_continuous(breaks = seq(1995, 2023, by = 2)) +
+  labs(x = "Calendar year", y = "Incidence rate per 100,000 person-years", 
+    title = "Annual Incidence for jSLE (1995-2023)") + theme_classic(base_size = 12) +
+  theme(axis.text = element_text(colour = "black"), legend.position = "right",
+        legend.text = element_text(size = 11), )
+
+#View plot
+jSLE_plot
+
+
+# Join the annual sex line graphs together
+library(patchwork)
+
+combined_plot_annual <- JDM_plot | jSLE_plot
+combined_plot_annual
+
+ggsave(combined_plot_annual, file = "Annual incidence JDM and jSLE.png", width = 14,height = 4,dpi = 300)
+```
+
+# Line graph (w/ 95% CI) for point prevalence
+## JIA
+```{r}
+JIA_pp <- read_excel("R:/Anie/Incidence xlsx sheets/JIA/Point Prevalence for JIA.xlsx")
+
+ggplot(JIA_pp, aes(x = Year, y = Prevalence)) +
+  geom_errorbar(aes(ymin = Lower95CI, ymax = Upper95CI), width = 0.4, colour = "black") +
+  geom_line(linewidth = 0.8, color = "red") +
+  geom_point(size = 1.5, colour = "red") +
+  scale_x_continuous(breaks = 1995:2022)+
+  labs(title = "Annual point prevalence of JIA",x = "Year",y = "Prevalence per 100,000") +
+  theme(plot.title = element_text(hjust = 0.5))+
+  theme_minimal()
+
+ggsave("Annual point prevalence of JIA.png", bg = "white", width = 14, height=7, dpi = 300)
+```
+## JDM
+```{r}
+JDM_pp <- read_excel("R:/Anie/Incidence xlsx sheets/JDM/Point Prevalence for JDM.xlsx")
+
+ggplot(JDM_pp, aes(x = Year, y = Prevalence)) +
+  geom_errorbar(aes(ymin = Lower95CI, ymax = Upper95CI), width = 0.4, colour = "black") +
+  geom_line(linewidth = 0.8, color = "red") +
+  geom_point(size = 1.5, colour = "red") +
+  scale_x_continuous(breaks = 1995:2022)+
+  labs(title = "Annual point prevalence of JDM",x = "Year",y = "Prevalence per 100,000") +
+  theme(plot.title = element_text(hjust = 0.5))+
+  theme_minimal()
+
+ggsave("Annual point prevalence of JDM.png", bg = "white", width = 14, height=7, dpi = 300)
+```
+## jSLE
+```{r}
+jSLE_pp <- read_excel("R:/Anie/Incidence xlsx sheets/jSLE/Point Prevalence for jSLE.xlsx")
+
+ggplot(jSLE_pp, aes(x = Year, y = Prevalence)) +
+  geom_errorbar(aes(ymin = Lower95CI, ymax = Upper95CI), width = 0.4, colour = "black") +
+  geom_line(linewidth = 0.8, color = "red") +
+  geom_point(size = 1.5, colour = "red") +
+  scale_x_continuous(breaks = 1995:2022)+
+  labs(title = "Annual point prevalence of jSLE",x = "Year",y = "Prevalence per 100,000") +
+  theme(plot.title = element_text(hjust = 0.5))+
+  theme_minimal()
+
+ggsave("Annual point prevalence of jSLE.png", bg = "white", width = 14, height=7, dpi = 300)
+```
